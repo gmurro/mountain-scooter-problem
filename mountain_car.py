@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 
 
 class MountainCar:
@@ -109,6 +110,9 @@ class MountainCar:
         # Return state_t1, reward, done
         return (position_t1, velocity_t1), reward, done
 
+    def getImage(self, path='assets/scooter.png'):
+        return OffsetImage(plt.imread(path, format="jpg"), zoom=.1)
+
     def render(self, file_path='./mountain_car.mp4', mode='mp4'):
         """ When the method is called it saves an animation
         of what happened until that point in the episode.
@@ -125,9 +129,9 @@ class MountainCar:
         ax.grid(False)  # disable the grid
         x_sin = np.linspace(start=-1.2, stop=0.5, num=100)
         y_sin = np.sin(3 * x_sin)
-        # plt.plot(x, y)
+
         ax.plot(x_sin, y_sin)  # plot the sine wave
-        # line, _ = ax.plot(x, y, 'o-', lw=2)
+
         dot, = ax.plot([], [], 'ro')
         time_text = ax.text(0.05, 0.9, '', transform=ax.transAxes)
         _position_list = self.position_list

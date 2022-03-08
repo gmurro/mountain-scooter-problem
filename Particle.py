@@ -1,12 +1,11 @@
 import numpy as np
 
 class Particle:
-    def __init__(self, id, value, value_bounds):
+    def __init__(self, id, value):
         """
         Initialize a particle with a given position and a random velocity
             :param id: Integer representing the identifier of the particle
             :param value: Array representing the position of the particle
-            :param value_bounds: Tuple of the minimum and maximum values for each dimension of the particle
         """
         self.id = id
         self.value = value
@@ -15,7 +14,6 @@ class Particle:
         self.best_value = self.value
         self.best_fitness = -np.inf
         self.fitness = None
-        self.value_bounds = value_bounds
 
     def evaluate(self, fitness_function):
         """
@@ -50,15 +48,14 @@ class Particle:
         Update the value (position) of the particle
         """
         self.value = self.value + self.velocity
-        self.fix()  # ensure that the value is within the bounds
 
-    def fix(self):
+    def repair(self, value_bounds):
         """
         Fix the value of the particle clipping into the bounds if it is not a feasible solution
             :return: Value of the particle fixed
         """
         self.value = np.rint(self.value)
-        self.value = np.clip(self.value, self.value_bounds[0], self.value_bounds[1])
+        self.value = np.clip(self.value, value_bounds[0], value_bounds[1])
 
     def __str__(self):
         return "Particle {} (fitness={})".format(self.id, self.fitness)
