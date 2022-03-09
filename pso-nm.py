@@ -266,50 +266,21 @@ class PSO_NM:
         return self.best_particle_population
 
 
-def evaluate_policy(policy, env, num_bins, exploring_starts=True):
-    policy = policy.reshape(num_bins, num_bins)
-
-    # list of thresholds according to which packing in bins the velocity and the position
-    velocity_state_array = np.linspace(env.max_speed, env.max_speed, num=num_bins - 1, endpoint=False)
-    position_state_array = np.linspace(env.min_position, env.max_position, num=num_bins - 1, endpoint=False)
-
-    # Reset and return the first observation
-    velocity, position = env.reset(exploring_starts=exploring_starts)
-
-    # The observation is digitized, meaning that an integer corresponding
-    # to the bin where the raw float belongs is obtained and use as replacement.
-    state = (np.digitize(velocity, velocity_state_array), np.digitize(position, position_state_array))
-
-    max_steps = 100
-    cumulated_reward = 0
-    for step in range(max_steps):
-
-        action = int(policy[state])
-        # Move one step in the environment and get the new state and reward
-        (new_velocity, new_position), reward, done = env.step(action)
-        state = (np.digitize(new_velocity, velocity_state_array),
-                     np.digitize(new_position, position_state_array))
-        cumulated_reward += reward
-
-        # if the episode is done, break the loop
-        if done: break
-    return cumulated_reward
-
-
 def main():
-    env = MountainScooter(mass=0.70, friction=0.35, max_speed=2.8)
+    env = MountainScooter(mass=0.40, friction=0.35, max_speed=1.8)
 
     num_bins = 20
     pso_nm = PSO_NM(n=num_bins*num_bins
-                    , fitness_function=lambda policy: evaluate_policy(policy, env, num_bins, False)
+                    , fitness_function=lambda policy: env.evaluate_policy(policy, num_bins)
                     , value_bounds=(0, 2)
-                    , max_iterations=10
+                    , max_iterations=30
                     , verbose=True)
     optimal_particle = pso_nm.optimize()
-    evaluate_policy(optimal_particle.value, env, num_bins, False)
-    print("Saving the gif in: ./mountain_car_pso.gif")
-    env.render(file_path='./mountain_car_pso.gif', mode='gif')
-    print("Complete!")
+    env.evaluate_policy(optimal_particle.value, num_bins)
+
+    env.render(show_plot=True)
+    print("✅ Complete!")
+
 
 if __name__ == "__main__":
     main()

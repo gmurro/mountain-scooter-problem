@@ -166,13 +166,14 @@ class MountainScooter:
         x = np.linspace(-1.3, 0.6, 100)
         y = np.sin(3 * x)
 
-        # plot the sin wave
-        ax.plot(x, y, color='#525252', linewidth=25.0, zorder=5)
-        ax.plot(x, y, color='white', linestyle='dashed', linewidth=1.5, zorder=10)
-
         # plot the scooter
         img = plt.imread("assets/scooter.png")
         im = ax.imshow(img, zorder=10, aspect='auto')
+        dot, = ax.plot([], [], color='#800000', marker='o', linewidth=2.0, zorder=15)
+
+        # plot the sin wave
+        ax.plot(x, y, color='#525252', linewidth=25.0, zorder=5)
+        ax.plot(x, y, color='white', linestyle='dashed', linewidth=1.5, zorder=10)
 
         # add time annotation
         time_text = ax.text(0.05, 0.9, '', transform=ax.transAxes)
@@ -188,11 +189,13 @@ class MountainScooter:
 
         def _update(i):
             x = _position_list[i]
+            y = np.sin(3 * x)
             l = x - 0.13
             r = x + 0.13
-            b = np.sin(3*x) - 0.25
-            t = np.sin(3*x) + 0.25
+            b = y - 0.25
+            t = y + 0.25
             im.set_extent([l, r, b, t])
+            dot.set_data(x, y)
 
             time_text.set_text("Time: " + str(np.round(i * _delta_t, 1)) + "s" + '\n' + "Frame: " + str(i))
             return
@@ -214,10 +217,9 @@ def main():
     """
     Execute the environment going back and forth as long as the scooter velocity became negative.
     """
-    #my_car = MountainCar(mass=0.45, friction=0.4, max_speed=1.8)
-
     # Initialize the environment
-    env = MountainScooter(mass=0.70, friction=0.35, max_speed=2.8)
+    #env = MountainScooter(mass=0.70, friction=0.35, max_speed=2.8)
+    env = MountainScooter(mass=0.40, friction=0.35, max_speed=1.8)
 
     total_reward = 0
     done = False
@@ -244,8 +246,9 @@ def main():
     print("Finished after: " + str(step + 1) + " steps")
     print("Total reward: " + str(total_reward))
 
-    env.render(show_plot=False)
+    env.render(show_plot=True)
     print("✅ Complete!")
+
 
 if __name__ == "__main__":
     main()

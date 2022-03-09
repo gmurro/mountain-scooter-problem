@@ -75,30 +75,30 @@ class PSO:
             self.best_particle_population = self.compute_best_particle_population()
 
 
-
 def main():
     # initialize environment
-    env = MountainScooter(mass=0.70, friction=0.35, max_speed=2.8)
+    env = MountainScooter(mass=0.40, friction=0.35, max_speed=1.8)
 
     num_bins = 20
     num_particles = 100
 
     # initialize PSO
     pso = PSO(
-        size_particle=(num_bins, num_bins)
-        , position_bounds=(0, 2)
-        , fitness_function=lambda policy: evaluate_policy(policy, env, num_bins)
+        n=num_bins*num_bins
         , num_particles=num_particles
-        , max_iterations=100
+        , fitness_function=lambda policy: env.evaluate_policy(policy, num_bins)
+        , value_bounds=(0, 2)
+        , max_iterations=50
         , w=0.73
         , c1=1.5
         , c2=1.5
+        , verbose=True
     )
-    pso.run()
+    pso.optimize()
 
-    evaluate_policy(pso.population_best.position, env, num_bins)
-    print(pso.population_best)
-    env.render(file_path='./mountain_car.gif', mode='gif')
+    env.evaluate_policy(pso.best_particle_population.value, num_bins)
+    print(pso.best_particle_population)
+    env.render(file_path='./mountain_car.gif')
 
 if __name__ == "__main__":
     main()
