@@ -1,5 +1,5 @@
 import numpy as np
-from mountain_car import MountainCar
+from mountain_scooter import MountainScooter
 import matplotlib.pyplot as plt
 
 def update_state_action(state_action_matrix, visit_counter_matrix, observation, new_observation,
@@ -130,7 +130,7 @@ def plot_curve(data_list, filepath="./my_plot.png",
 
 def main():
 
-    env =  MountainCar(mass=0.45, friction=0.3, max_speed=1.7)
+    env =  MountainScooter(mass=0.45, friction=0.3, max_speed=1.7)
 
     # Define the state arrays for velocity and position
     tot_action = 3  # Three possible actions

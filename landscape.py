@@ -6,10 +6,10 @@ from tqdm import tqdm
 
 matplotlib.use('Qt5Agg')
 
-from mountain_car import MountainCar
+from mountain_scooter import MountainScooter
 
 # initialize environment
-env = MountainCar(mass=0.45, friction=0.4, max_speed=1.8)
+env = MountainScooter(mass=0.45, friction=0.4, max_speed=1.8)
 
 def fitness(policy):
 

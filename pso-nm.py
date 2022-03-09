@@ -1,6 +1,6 @@
 import numpy as np
 from Particle import Particle
-from mountain_car import MountainCar
+from mountain_scooter import MountainScooter
 
 np.random.seed(31)
 
@@ -10,13 +10,17 @@ class InitialPointShapeException(Exception):
 
 
 class PSO_NM:
-    def __init__(self, n, fitness_function, value_bounds=(0, 2), max_iterations=100, reflection_parameter=1, expansion_parameter=2, contraction_parameter=0.5, shrinking_parameter=0.5, w=0.5, c1=1.5, c2=1.5, x_1=None, shift_coefficient=1, verbose=False):
+    """
+    Class that implement the Particle Swarm Optimization Nelder-Mead algorithm.
+    It take inspiration from the paper by An Liu at al. (A New Hybrid Nelder-Mead Particle Swarm Optimization for Coordination Optimization of Directional Overcurrent Relays, 2012).
+    """
+    def __init__(self, n, fitness_function, value_bounds=(0, 2), max_iterations=50, reflection_parameter=1, expansion_parameter=2, contraction_parameter=0.5, shrinking_parameter=0.5, w=0.5, c1=1.5, c2=1.5, x_1=None, shift_coefficient=1, verbose=False):
         """
         Initialize the Particle Swarm Optimization Nelder-Mead algorithm.
-            :param n: Number of dimensions.
-            :param fitness_function: Fitness function.
-            :param value_bounds: Tuple of the minimum and maximum values for each dimension.
-            :param max_iterations: Maximum number of iterations. Default value is 100.
+            :param n: Number of dimensions. It represent the size of a single particle.
+            :param fitness_function: Fitness function to evaluate the particles.
+            :param value_bounds: Tuple of the minimum and maximum values for each dimension. Default value is (0, 2).
+            :param max_iterations: Maximum number of iterations. Default value is 50.
             :param reflection_parameter: Reflection parameter. Default value is 1.
             :param expansion_parameter: Expansion parameter. Default value is 2.
             :param contraction_parameter: Contraction parameter. Default value is 0.5.
@@ -78,8 +82,7 @@ class PSO_NM:
         Initialize the population of particles
             :return: A list of particles representing the population
         """
-        # Num of particles in the swarm as defined in the paper
-        # by An Liu at al. (A New Hybrid Nelder-Mead Particle Swarm Optimization, 2012)
+        # Number of particles in the swarm as defined in the paper
         N = 2 * self.n + 1
 
         # the first n+1 particles are constructed using the predetermined starting point and a positive step size of 1.0
@@ -112,7 +115,11 @@ class PSO_NM:
         for particle in self.population:
             particle.repair(self.value_bounds)
 
-    def compute_population_best(self):
+    def compute_best_particle_population(self):
+        """
+        Compute the best particle in the population according to the fitness value.
+            :return: Particle object representing the best particle in the population.
+        """
         return self.population[np.argmax([particle.fitness for particle in self.population])]
 
     def pso(self):
@@ -120,8 +127,11 @@ class PSO_NM:
         Perform one iteration of the PSO algorithm
         """
         for particle in self.population:
+            # Update the particle velocity and according to that update the particle value
             particle.update_velocity(self.w, self.c1, self.c2, self.best_particle_population.value)
             particle.update_value()
+
+            # Repair the particle if it is infeasible and evaluate its fitness
             particle.repair(self.value_bounds)
             particle.evaluate(self.fitness_function)
 
@@ -239,18 +249,19 @@ class PSO_NM:
             self.sort()
             self.best_particle_population = self.population[0]
 
-            print(
-                f"🚀 Performing iteration {i}\t🥴 "
-                f"Avg={round(np.average([p.fitness for p in self.population]), 2)}\t"
-                f"Best value={self.best_particle_population.fitness}")
+            if self.verbose:
+                print(
+                    f"🚀 Performing iteration {i}:\n\t📊 "
+                    f"Avg={round(np.average([p.fitness for p in self.population]), 2)}\t"
+                    f"Best value={self.best_particle_population.fitness}")
 
             # Apply Nelder-Mead operator to the top n+1 particles and update the (n+1)th particle.
             self.nelder_mead()
-            self.best_particle_population = self.compute_population_best()
+            self.best_particle_population = self.compute_best_particle_population()
 
             # Apply PSO operator for updating the N particles.
             self.pso()
-            self.best_particle_population = self.compute_population_best()
+            self.best_particle_population = self.compute_best_particle_population()
 
         return self.best_particle_population
 
@@ -286,7 +297,7 @@ def evaluate_policy(policy, env, num_bins, exploring_starts=True):
 
 
 def main():
-    env = MountainCar(mass=0.70, friction=0.35, max_speed=2.8)
+    env = MountainScooter(mass=0.70, friction=0.35, max_speed=2.8)
 
     num_bins = 20
     pso_nm = PSO_NM(n=num_bins*num_bins

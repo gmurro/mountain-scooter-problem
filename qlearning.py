@@ -3,7 +3,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from tqdm import tqdm
-from mountain_car import MountainCar
+from mountain_scooter import MountainScooter
 matplotlib.use('Qt5Agg')
 np.random.seed(9)
 
@@ -260,7 +260,7 @@ def plot_stats(x, y, x_label, y_label,  labels, title="", std_y=None, y_scale="l
 
 def main():
     #env = MountainCar(mass=0.45, friction=0.4, max_speed=1.8)
-    env = MountainCar(mass=0.70, friction=0.35, max_speed=2.8)
+    env = MountainScooter(mass=0.70, friction=0.35, max_speed=2.8)
     
     # -------------------------------------------------------------------------------#
     # ----------------------------- Q-learning method -------------------------------#
