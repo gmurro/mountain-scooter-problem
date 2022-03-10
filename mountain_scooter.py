@@ -218,7 +218,6 @@ def main():
     Execute the environment going back and forth as long as the scooter velocity became negative.
     """
     # Initialize the environment
-    #env = MountainScooter(mass=0.70, friction=0.35, max_speed=2.8)
     env = MountainScooter(mass=0.4, friction=0.3, max_speed=1.8)
 
     total_reward = 1

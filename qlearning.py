@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from tqdm import tqdm
 from mountain_scooter import MountainScooter
 matplotlib.use('Qt5Agg')
 np.random.seed(9)
@@ -10,17 +9,20 @@ np.random.seed(9)
 
 class QLearning(object):
     """
-    QLearning is a class that implements the Q-Learning algorithm
+    QLearning is a class that implements the Q-Learning off-policy TD control algorithm
+    by Sutton and Barto, Reinforcement Learning: An Introduction (2018, http://incompleteideas.net/book/ebook/node65.html)
     """
-    def __init__(self, env, num_bins, alpha, epsilon, num_actions=3, discount_factor=1.0):
+    def __init__(self, env, num_bins, alpha, epsilon, decay_factor=200, num_actions=3, discount_factor=1.0, verbose=False):
         """
         Initializes the Q-Learning algorithm
             :param env: Environment object to interact with
             :param num_bins: number of bins used to discretize the space
-            :param num_actions: number of actions allowed (default: 3)
-            :param alpha: Learning rate
-            :param discount_factor: Value of discount factor (default: 1.0)
+            :param alpha: Starting value of alpha to compute the learning rate that will be decayed over time
             :param epsilon: Starting value of epsilon for the epsilon-greedy policy (it will be decayed over time)
+            :param decay_factor: Denominator used to decay epsilon and alpha over time (default: 200)
+            :param num_actions: number of actions allowed (default: 3)
+            :param discount_factor: Value of discount factor (default: 1.0)
+            :param verbose: If True, print the progress of the algorithm. Default value is False.
         """
         self.env = env
         self.num_bins = num_bins
@@ -28,12 +30,14 @@ class QLearning(object):
         self.alpha = alpha
         self.discount_factor = discount_factor
         self.epsilon = epsilon
+        self.decay_factor = decay_factor
+        self.verbose = verbose
         self.policy = self.initialize_policy_grid()  # Initialize policy randomly
 
     def policy_to_string(self):
         """
         Convert the policy matrix to string using specific symbol. O noop, < left, > right.
-        :return: string representation of the policy
+            :return: string representation of the policy
         """
         counter = 0
         shape = self.policy.shape
@@ -53,9 +57,8 @@ class QLearning(object):
     def initialize_policy_grid(self):
         """
         Creates a grid of random policies based on the number of bins used to discretize the space.
-        :return: matrix of policies for each state
+            :return: matrix of policies for each state
         """
-
         # Random policy as a square matrix of size (num_bins x num_bins)
         # Three possible actions represented by three integers
         policy = np.random.randint(low=0, high=self.num_actions, size=(self.num_bins, self.num_bins))
@@ -64,24 +67,25 @@ class QLearning(object):
     def greedification(self, q_values):
         """
         Greedification of the value-state function and compute the corresponding policy matrix.
-        :param q_values: Value-state function matrix
+            :param q_values: Value-state function matrix
         """
         # greedify the value-state function
         for i in range(self.policy.shape[0]):
             for j in range(self.policy.shape[1]):
                 self.policy[i, j] = np.argmax(q_values[i, j])
 
-    def train(self, num_episodes, max_steps=100, n_episode_print_stats=100, n_episode_save_movie=10000, render_training=True, return_stats=False):
+    def train(self, num_episodes, max_steps=100, n_episode_print_stats=500, n_episode_render_env=None, render_training=False, return_stats=False):
         """
         Implementation of the Q-learning algorithm.
-        :param num_episodes: Number of episodes to use for training
-        :param max_steps: Maximum number of steps per episode
-        :param n_episode_print_stats: Number of episodes after which to print stats
-        :param n_episode_save_movie: Number of episodes after which to save the movie
-        :param return_stats: Boolean indicating whether to return the stats of the algorithm
-        :return: Return the optimal Q-value matrix, the optimal policy is stored in the attribute policy
+            :param num_episodes: Number of episodes to use for training
+            :param max_steps: Maximum number of steps per episode
+            :param n_episode_print_stats: Number of episodes after which to print stats
+            :param n_episode_render_env: Number of episodes after which to render the scooter acting in the environment with the policy learned so far. If None, no rendering will be done.
+            :param render_training: Boolean to indicate whether to render the evolution of the training or not at the end of the training. Default value is True.
+            :param return_stats: Boolean indicating whether to return the stats of the algorithm
+            :return: Return the optimal Q-value matrix, the optimal policy is stored in the attribute policy
         """
-        # initialize the value-state function to 0
+        # initialize the value-state function randomly
         q_values = np.random.random((self.num_bins, self.num_bins, self.num_actions))
 
         # list of thresholds according to which packing in bins the velocity and the position
@@ -90,18 +94,116 @@ class QLearning(object):
 
         # store the stats of the algorithm in a dictionary
         stats = {
-            'visit_counter_state': np.zeros((self.num_bins, self.num_bins, self.num_actions)),
-            'cumulated_rewards': np.zeros(num_episodes),
-            'episode_steps': np.zeros(num_episodes),
+            'v_values_steps': np.zeros((self.num_bins, self.num_bins, num_episodes)),
+            'total_rewards': np.zeros(num_episodes),
             'avg_td': np.zeros(num_episodes),
             'std_td': np.zeros(num_episodes)
         }
 
-        if render_training:
-            # Attaching 3D axis to the figure
-            fig = plt.figure()
-            ax = plt.axes(projection='3d')
+        for episode in range(num_episodes):
+            # compute the epsilon decayed value for the current episode
+            # to explore more at the beginning and to exploit at the end
+            decayed_value = self.epsilon * np.power(0.9, (episode / self.decay_factor))
+            epsilon = decayed_value if decayed_value > 0.01 else 0.01
 
+            # Reset and return the first observation
+            velocity, position = self.env.reset()
+
+            # The observation is digitized, meaning that an integer corresponding
+            # to the bin where the raw float belongs is obtained and use as replacement.
+            state = (np.digitize(velocity, velocity_state_array), np.digitize(position, position_state_array))
+
+            # compute the policy derived from the Q-values
+            self.greedification(q_values)
+
+            # store an array of temporal differencing
+            td = []
+
+            total_reward = 0
+            step = 0
+            done = False
+
+            # Iterate until the maximum number of steps is reached or the goal is reached
+            while not done and step < max_steps:
+                # choose an action based on the policy using epsilon-greedy strategy
+                if np.random.random() > 1 - epsilon:
+                    action = np.random.randint(low=0, high=self.num_actions)
+                else:
+                    action = self.policy[state]
+
+                # Move one step in the environment and get the new state and reward
+                (new_velocity, new_position), reward, done = self.env.step(action)
+                new_state = (np.digitize(new_velocity, velocity_state_array),
+                             np.digitize(new_position, position_state_array))
+
+                # compute the temporal difference
+                td_t = reward + self.discount_factor * np.max(q_values[new_state[0], new_state[1]]) - q_values[state[0], state[1], action]
+                td.append(td_t)
+
+                # update the Q-values
+                decayed_value = self.alpha * np.power(0.9, (episode / self.decay_factor))
+                lr = decayed_value if decayed_value > 0.01 else 0.01
+                q_values[state[0], state[1], action] += lr * td_t
+
+                state = new_state
+                total_reward += reward
+                step += 1
+
+            # Store the data for statistics
+            stats['v_values_steps'][:, :, episode] = np.max(q_values, axis=2)   # store the V-values
+            stats['avg_td'][episode] = np.average(td)
+            stats['std_td'][episode] = np.std(td)
+            stats['total_rewards'][episode] = total_reward
+
+            if episode % n_episode_print_stats == 0:
+                print(f"🚀 Performing episode {episode + 1}:\n\t"
+                      f"🏆 Total reward={total_reward}\n\t"
+                      f"📉 Epsilon={epsilon:.2f}\t"
+                      f"Learning rate={lr:.2f}\n\t"
+                      f"📊 Average TD={stats['avg_td'][episode]:.2f}\t"
+                      f"Standard dev TD={stats['std_td'][episode]:.2f}")
+            elif self.verbose:
+                print(f"🚀 Performing episode {episode+1}:\n\t"
+                      f"🏆 Total reward={total_reward}")
+
+            if n_episode_render_env is not None and episode % n_episode_render_env == 0:
+                # Render the scooter acting in the environment with the policy learned so far
+                print("🚧 Rendering the scooter acting in the environment with the policy learned so far...")
+                self.env.render(show_plot=True)
+
+        # update optimal policy greedified from the Q-values
+        self.greedification(q_values)
+
+        # plot the V-values evolution over time
+        if render_training:
+            print("\n🚧 Rendering the V-values evolution over time...")
+            self.render_training(x = np.append(position_state_array, self.env.max_position)
+                                 , y = np.append(velocity_state_array, self.env.max_speed)
+                                 , v_values=stats['v_values_steps']
+                                 , show_plot=True)
+        return q_values if not return_stats else q_values, stats
+
+    def render_training(self, x, y, v_values, file_path="./q-learning_training.gif", show_plot=False, figsize=(10, 8)):
+        """
+        Render evolution of the v-values during the training.
+            :param x: x-axis values
+            :param y: y-axis values
+            :param v_values: V-values matrices obtained at each episode during the training
+            :param file_path: the path where the gif will be saved
+            :param show_plot: if True the plot will be shown, otherwise it will be saved in the file_path
+            :param figsize: the size of the figure
+        """
+
+        # Attaching 3D axis to the figure
+        fig = plt.figure(figsize=figsize)
+        ax = plt.axes(projection='3d')
+
+        # plot initial surface
+        X, Y = np.meshgrid(x, y)
+        Z = v_values[:,:,0]
+        plot = [ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap='viridis', edgecolor='none')]
+
+        def _init():
             # Setting the axes properties
             ax.set_xlim3d([self.env.min_position, self.env.max_position])
             ax.set_xlabel('Position')
@@ -110,139 +212,39 @@ class QLearning(object):
             ax.set_ylabel('Velocity')
 
             ax.set_zlabel('V-value')
+            return
 
-            ax.set_title('Q-learning - Mountain Car')
-
-            # plot initial surface
-            x = np.append(position_state_array, self.env.max_position)
-            y = np.append(velocity_state_array, self.env.max_speed)
-
-            X, Y = np.meshgrid(x, y)
-            Z = np.max(q_values, axis=2)
-
-            plot = [ax.plot_surface(X, Y, Z, rstride=1, cstride=1,
-                            cmap='viridis', edgecolor='none')]
-
-            # Creating the Animation object
-            ani = animation.FuncAnimation(fig, self.episodic_training, num_episodes, fargs=(max_steps, n_episode_print_stats, n_episode_save_movie,
-                                        position_state_array, q_values, stats, velocity_state_array, plot, ax), interval=1, repeat=False)
-            plt.show()
-            ani.save("q-learning.gif", writer='imagemagick', fps=120)
-        else:
-            for episode in tqdm(range(num_episodes), desc='Compute optimal policy using Q-LEARNING algorithm', unit=' episodes'):
-                self.episodic_training(episode, max_steps, n_episode_print_stats, n_episode_save_movie,
-                                       position_state_array, q_values, stats, velocity_state_array)
-
-        # update optimal policy greedified from the Q-values
-        self.greedification(q_values)
-
-        print("Saving the gif in: ./mountain_car.gif")
-        self.env.render(show_plot=True)
-        print("Complete!")
-
-        return q_values if not return_stats else q_values, stats
-
-    def episodic_training(self, episode, max_steps, n_episode_print_stats, n_episode_save_movie, position_state_array,
-                          q_values, stats, velocity_state_array, plot=None, ax=None):
-        """
-        Implementation of the Q-learning algorithm for one episode.
-        :param episode: Number of the episode
-        :param max_steps: Maximum number of steps per episode
-        :param velocity_state_array: Array of thresholds according to which packing in bins the velocity
-        :param position_state_array: Array of thresholds according to which packing in bins the position
-        :param q_values: Current Q-value matrix
-        :param stats: Dictionary of the stats of the algorithm
-        """
-        decayed_value = self.epsilon * np.power(0.9, (episode / 2000))
-        self.epsilon = decayed_value if decayed_value > 0.01 else 0.01
-
-        # Reset and return the first observation
-        velocity, position = self.env.reset(exploring_starts=True)
-
-        # The observation is digitized, meaning that an integer corresponding
-        # to the bin where the raw float belongs is obtained and use as replacement.
-        state = (np.digitize(velocity, velocity_state_array), np.digitize(position, position_state_array))
-
-        # compute the policy derived from the Q-values
-        self.greedification(q_values)
-
-        # store an array of temporal differencing
-        td = []
-        cumulated_reward = 0
-        # for each step in the episode
-        for step in range(max_steps):
-            # choose an action based on the policy using ε-greedy
-            if np.random.random() > 1 - self.epsilon:
-                action = np.random.randint(low=0, high=self.num_actions)
-            else:
-                action = self.policy[state]
-
-            # Move one step in the environment and get the new state and reward
-            (new_velocity, new_position), reward, done = self.env.step(action)
-            new_state = (np.digitize(new_velocity, velocity_state_array),
-                         np.digitize(new_position, position_state_array))
-
-            # Increment the visit counter
-            stats['visit_counter_state'][state[0], state[1], action] += 1
-
-            # update the Q-values
-            td_t = reward + self.discount_factor * np.max(q_values[new_state[0], new_state[1]]) - q_values[
-                state[0], state[1], action]
-            td.append(td_t)
-
-            decayed_alpha = self.alpha * np.power(0.9, (episode / 100))
-            alpha = decayed_alpha if decayed_alpha > 0.001 else 0.001
-            q_values[state[0], state[1], action] += alpha * td_t
-
-            state = new_state
-            cumulated_reward += reward
-
-            # if the episode is done, break the loop
-            if done: break
-
-
-        # Store the data for statistics
-        stats['avg_td'][episode] = np.average(td)
-        stats['std_td'][episode] = np.std(td)
-        stats['cumulated_rewards'][episode] = cumulated_reward
-        stats['episode_steps'][episode] = step + 1
-
-        if episode % n_episode_print_stats == 0:
-            print("\nEpisode: " + str(episode + 1))
-            print("Epsilon: " + str(self.epsilon))
-            print("Episode steps: " + str(stats['episode_steps'][episode]))
-            print("Cumulated Reward: " + str(stats['cumulated_rewards'][episode]))
-            print("Policy matrix: \n" + self.policy_to_string())
-
-        """if episode % n_episode_save_movie == 0:
-            print("Saving the gif in: ./mountain_car.gif")
-            self.env.render(file_path='./mountain_car.gif', mode='gif')
-            print("Complete!")"""
-
-        if plot is not None:
-            # plot the figure
-            x = np.append(position_state_array, self.env.max_position)
-            y = np.append(velocity_state_array, self.env.max_speed)
-
-            X, Y = np.meshgrid(x, y)
-            Z = np.max(q_values, axis=2)
+        def _update(i):
+            Z = v_values[:,:,i]
 
             ax.clear()
             plot[0].remove()
-            plot[0] = ax.plot_surface(X, Y, Z, rstride=1, cstride=1,
-                                    cmap='viridis', edgecolor='none')
+            plot[0] = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap='viridis', edgecolor='none')
+            return
+
+        # Creating the Animation object
+        ani = animation.FuncAnimation(fig, _update, frames=v_values.shape[2], init_func=_init, blit=False, repeat=True)
+        if show_plot:
+            plt.show()
+        else:
+            ani.save(file_path, writer='pillow')
+            print("Animation saved in " + file_path)
+
+        # Clear the figure
+        fig.clear()
+
 
 def plot_stats(x, y, x_label, y_label,  labels, title="", std_y=None, y_scale="linear", figsize=(10,5)):
     """
     Plot the given data.
-    :param x: Array of x values.
-    :param y:  List of array of y values.
-    :param x_label:  Label of the x axis.
-    :param y_label: Label of the y axis.
-    :param title: Title of the plot.
-    :param labels: List of labels
-    :param std_y: List of standard deviation of the y values.
-    :param y_scale: Scale of the y axis.
+        :param x: Array of x values.
+        :param y:  List of array of y values.
+        :param x_label:  Label of the x axis.
+        :param y_label: Label of the y axis.
+        :param title: Title of the plot.
+        :param labels: List of labels
+        :param std_y: List of standard deviation of the y values.
+        :param y_scale: Scale of the y axis.
     """
     plt.figure(figsize=figsize)
     for i in range(len(y)):
@@ -265,19 +267,26 @@ def main():
     # ----------------------------- Q-learning method -------------------------------#
     # -------------------------------------------------------------------------------#
     num_episodes = 10000
-    optimizer = QLearning(env, num_bins=20, alpha=0.5, epsilon=0.4)
-    q_valuse, stats = optimizer.train(num_episodes=num_episodes, return_stats=True)
-    print("Policy matrix after " + str(num_episodes) + " episodes:")
-    print(optimizer.policy_to_string())
+    optimizer = QLearning(env
+                          , num_bins=20
+                          , alpha=0.1
+                          , epsilon=0.4
+                          , verbose=False)
+    q_valuse, stats = optimizer.train(num_episodes=num_episodes
+                                      , max_steps=100
+                                      , n_episode_print_stats=500
+                                      , n_episode_render_env=5000
+                                      , render_training=True
+                                      , return_stats=False)
 
     # plot statistics
-    plot_episodes = range(0, num_episodes, 150)
+    plot_episodes = range(0, num_episodes, 100)
     plot_stats(
         x=plot_episodes,
-        y=[stats['episode_steps'][plot_episodes]],
+        y=[stats['total_rewards'][plot_episodes]],
         x_label="Episode",
-        y_label="Steps",
-        title="Number of steps per episode",
+        y_label="Total reward",
+        title="Total reward per episode",
         labels=["Q-learning"],
     )
     plot_stats(

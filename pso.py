@@ -60,7 +60,7 @@ class PSO:
             # print statistics
             if self.verbose:
                 print(
-                    f"🚀 Performing iteration {i}:\n\t📊 "
+                    f"🚀 Performing iteration {i+1}:\n\t📊 "
                     f"Avg={round(np.average([p.fitness for p in self.population]), 2)}\t"
                     f"Best value={self.best_particle_population.fitness}")
 
@@ -79,7 +79,7 @@ def main():
     # initialize environment
     env = MountainScooter(mass=0.4, friction=0.3, max_speed=1.8)
 
-    num_bins = 20
+    num_bins = 15
     num_particles = 200
 
     # initialize PSO

@@ -4,7 +4,7 @@ from tqdm import tqdm
 from Particle import Particle
 from mountain_scooter import MountainScooter
 
-#np.random.seed(31)
+np.random.seed(29)
 
 
 class InitialPointShapeException(Exception):
@@ -16,7 +16,7 @@ class PSO_NM:
     Class that implement the Particle Swarm Optimization Nelder-Mead algorithm.
     It take inspiration from the paper by An Liu at al. (A New Hybrid Nelder-Mead Particle Swarm Optimization for Coordination Optimization of Directional Overcurrent Relays, 2012).
     """
-    def __init__(self, n, fitness_function, value_bounds=(0, 2), max_iterations=50, reflection_parameter=1, expansion_parameter=2, contraction_parameter=0.5, shrinking_parameter=0.5, w=0.7, c1=2.0, c2=2.0, x_1=None, shift_coefficient=1, verbose=False):
+    def __init__(self, n, fitness_function, value_bounds=(0, 2), max_iterations=50, reflection_parameter=1, expansion_parameter=2, contraction_parameter=0.5, shrinking_parameter=0.5, w=0.7, c1=2.0, c2=2.0, x_1=None, shift_coefficient=2, verbose=False):
         """
         Initialize the Particle Swarm Optimization Nelder-Mead algorithm.
             :param n: Number of dimensions. It represent the size of a single particle.
@@ -31,7 +31,7 @@ class PSO_NM:
             :param c1: Cognitive parameter. Default value is 2.0.
             :param c2: Social parameter. Default value is 2.0.
             :param x_1: Used as the first point for the simplex generation. Defaults to None, which becomes a random point.
-            :param shift_coefficient: Shift coefficient for the simplex initialization. Default value is 1.
+            :param shift_coefficient: Shift coefficient for the simplex initialization. Default value is 2.
             :param verbose: If True, print the progress of the algorithm. Default value is False.
         """
         self.n = n
@@ -69,11 +69,16 @@ class PSO_NM:
             random_value = np.random.randint(low=self.value_bounds[0], high=self.value_bounds[1]+1, size=self.n)
             first_particle = Particle(0, random_value)
 
-
         simplex_particles = [first_particle]
 
-        # Then, we will generate all the other particles
+        # Then, we will generate the other particles by shifting the first one
+        # in all the position defined by an eye matrix with an offset
+        offset = 2
         identity = np.eye(self.n, dtype=int)
+        for i in range(1, offset+1):
+            np.fill_diagonal(identity[i:, :-i], 1)
+            np.fill_diagonal(identity[:-i, i:], 1)
+
         for i in range(self.n):
             # step is positive or negative, to avoid infeasible points
             step = self.shift_coefficient if first_particle.value[i] != self.value_bounds[1] else -self.shift_coefficient
@@ -256,7 +261,7 @@ class PSO_NM:
 
             if self.verbose:
                 print(
-                    f"🚀 Performing iteration {i}:\n\t📊 "
+                    f"🚀 Performing iteration {i+1}:\n\t📊 "
                     f"Avg={round(np.average([p.fitness for p in self.population]), 2)}\t"
                     f"Best value={self.best_particle_population.fitness}")
 
