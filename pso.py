@@ -10,7 +10,7 @@ class PSO:
     Class for the Particle Swarm Optimization algorithm.
     https://en.wikipedia.org/wiki/Particle_swarm_optimization
     """
-    def __init__(self, n, num_particles, fitness_function, value_bounds=(0, 2),  max_iterations=50, w=0.5, c1=1.5, c2=1.5, verbose=False):
+    def __init__(self, n, num_particles, fitness_function, value_bounds=(0, 2),  max_iterations=50, w=0.7, c1=2.0, c2=2.0, verbose=False):
         """
         Initialize the Particle Swarm Optimization algorithm.
             :param n: Number of dimensions. It represent the size of a single particle.
@@ -18,9 +18,9 @@ class PSO:
             :param fitness_function: Fitness function to evaluate the particles.
             :param value_bounds: Tuple with the minimum and maximum values for each dimension. Default value is (0, 2).
             :param max_iterations: Maximum number of iterations. Default: 50.
-            :param w: Inertia weight. Default: 0.5.
-            :param c1: Cognitive weight. Default: 1.5.
-            :param c2: Social weight. Default: 1.5.
+            :param w: Inertia weight. Default: 0.7.
+            :param c1: Cognitive weight. Default: 2.0.
+            :param c2: Social weight. Default: 2.0.
             :param verbose: If True, print the progress of the algorithm. Default value is False.
         """
         self.n = n
@@ -77,10 +77,10 @@ class PSO:
 
 def main():
     # initialize environment
-    env = MountainScooter(mass=0.40, friction=0.35, max_speed=1.8)
+    env = MountainScooter(mass=0.4, friction=0.3, max_speed=1.8)
 
     num_bins = 20
-    num_particles = 100
+    num_particles = 200
 
     # initialize PSO
     pso = PSO(
@@ -89,9 +89,9 @@ def main():
         , fitness_function=lambda policy: env.evaluate_policy(policy, num_bins)
         , value_bounds=(0, 2)
         , max_iterations=50
-        , w=0.73
-        , c1=1.5
-        , c2=1.5
+        , w=0.7
+        , c1=2.0
+        , c2=2.0
         , verbose=True
     )
     pso.optimize()

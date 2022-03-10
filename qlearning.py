@@ -71,7 +71,7 @@ class QLearning(object):
             for j in range(self.policy.shape[1]):
                 self.policy[i, j] = np.argmax(q_values[i, j])
 
-    def train(self, num_episodes, max_steps=100, n_episode_print_stats=100, n_episode_save_movie=10000, render_training=False, return_stats=False):
+    def train(self, num_episodes, max_steps=100, n_episode_print_stats=100, n_episode_save_movie=10000, render_training=True, return_stats=False):
         """
         Implementation of the Q-learning algorithm.
         :param num_episodes: Number of episodes to use for training
@@ -137,7 +137,7 @@ class QLearning(object):
         self.greedification(q_values)
 
         print("Saving the gif in: ./mountain_car.gif")
-        self.env.render(file_path='./mountain_car.gif', mode='gif')
+        self.env.render(show_plot=True)
         print("Complete!")
 
         return q_values if not return_stats else q_values, stats
@@ -259,20 +259,19 @@ def plot_stats(x, y, x_label, y_label,  labels, title="", std_y=None, y_scale="l
 
 
 def main():
-    #env = MountainCar(mass=0.45, friction=0.4, max_speed=1.8)
-    env = MountainScooter(mass=0.70, friction=0.35, max_speed=2.8)
+    env = MountainScooter(mass=0.4, friction=0.3, max_speed=1.8)
     
     # -------------------------------------------------------------------------------#
     # ----------------------------- Q-learning method -------------------------------#
     # -------------------------------------------------------------------------------#
     num_episodes = 10000
-    optimizer = QLearning(env, num_bins=30, alpha=0.5, epsilon=0.4)
+    optimizer = QLearning(env, num_bins=20, alpha=0.5, epsilon=0.4)
     q_valuse, stats = optimizer.train(num_episodes=num_episodes, return_stats=True)
     print("Policy matrix after " + str(num_episodes) + " episodes:")
     print(optimizer.policy_to_string())
 
     # plot statistics
-    plot_episodes = range(0, num_episodes, 1500)
+    plot_episodes = range(0, num_episodes, 150)
     plot_stats(
         x=plot_episodes,
         y=[stats['episode_steps'][plot_episodes]],

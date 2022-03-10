@@ -200,7 +200,7 @@ class MountainScooter:
             time_text.set_text("Time: " + str(np.round(i * _delta_t, 1)) + "s" + '\n' + "Frame: " + str(i))
             return
 
-        ani = animation.FuncAnimation(fig, _update, frames=len(self.position_list), init_func=_init, blit=False, repeat=False)
+        ani = animation.FuncAnimation(fig, _update, frames=len(self.position_list), init_func=_init, blit=False, repeat=True)
         ani.save(file_path, writer='pillow')
 
         if show_plot:
@@ -219,9 +219,9 @@ def main():
     """
     # Initialize the environment
     #env = MountainScooter(mass=0.70, friction=0.35, max_speed=2.8)
-    env = MountainScooter(mass=0.40, friction=0.35, max_speed=1.8)
+    env = MountainScooter(mass=0.4, friction=0.3, max_speed=1.8)
 
-    total_reward = 0
+    total_reward = 1
     done = False
     step = 0
     max_steps = 100
@@ -233,6 +233,7 @@ def main():
     # Iterate until the maximum number of steps is reached or the goal is reached
     while not done and step < max_steps:
         (velocity, position), reward, done = env.step(action)
+        print(velocity)
 
         if action == 0 and velocity > 0:
             action = 2

@@ -1,8 +1,10 @@
 import numpy as np
+from tqdm import tqdm
+
 from Particle import Particle
 from mountain_scooter import MountainScooter
 
-np.random.seed(31)
+#np.random.seed(31)
 
 
 class InitialPointShapeException(Exception):
@@ -14,7 +16,7 @@ class PSO_NM:
     Class that implement the Particle Swarm Optimization Nelder-Mead algorithm.
     It take inspiration from the paper by An Liu at al. (A New Hybrid Nelder-Mead Particle Swarm Optimization for Coordination Optimization of Directional Overcurrent Relays, 2012).
     """
-    def __init__(self, n, fitness_function, value_bounds=(0, 2), max_iterations=50, reflection_parameter=1, expansion_parameter=2, contraction_parameter=0.5, shrinking_parameter=0.5, w=0.5, c1=1.5, c2=1.5, x_1=None, shift_coefficient=1, verbose=False):
+    def __init__(self, n, fitness_function, value_bounds=(0, 2), max_iterations=50, reflection_parameter=1, expansion_parameter=2, contraction_parameter=0.5, shrinking_parameter=0.5, w=0.7, c1=2.0, c2=2.0, x_1=None, shift_coefficient=1, verbose=False):
         """
         Initialize the Particle Swarm Optimization Nelder-Mead algorithm.
             :param n: Number of dimensions. It represent the size of a single particle.
@@ -25,9 +27,9 @@ class PSO_NM:
             :param expansion_parameter: Expansion parameter. Default value is 2.
             :param contraction_parameter: Contraction parameter. Default value is 0.5.
             :param shrinking_parameter: Shrinkage parameter. Default value is 0.5.
-            :param w: Inertia weight. Default value is 0.5.
-            :param c1: Cognitive parameter. Default value is 1.5.
-            :param c2: Social parameter. Default value is 1.5.
+            :param w: Inertia weight. Default value is 0.7.
+            :param c1: Cognitive parameter. Default value is 2.0.
+            :param c2: Social parameter. Default value is 2.0.
             :param x_1: Used as the first point for the simplex generation. Defaults to None, which becomes a random point.
             :param shift_coefficient: Shift coefficient for the simplex initialization. Default value is 1.
             :param verbose: If True, print the progress of the algorithm. Default value is False.
@@ -60,12 +62,13 @@ class PSO_NM:
             if len(self.x_1) != self.n:
                 raise InitialPointShapeException(
                     f"Please enter an initial point having {self.n} dimensions.")
-        elif self.x_1 is None:  # If the user didn't provide a point
+            else:  # If the user provided a point, and it is in the right shape
+                first_particle = Particle(0, self.x_1)
+        else:  # If the user didn't provide a point
             # Initialize the first point of the simplex randomly
             random_value = np.random.randint(low=self.value_bounds[0], high=self.value_bounds[1]+1, size=self.n)
             first_particle = Particle(0, random_value)
-        else:  # If the user provided a point, and it is in the right shape
-            first_particle = Particle(0, self.x_1)
+
 
         simplex_particles = [first_particle]
 
@@ -142,6 +145,7 @@ class PSO_NM:
             - Tries reflection, expansion, contraction, shrinking
             - Updates the simplex
         If it continuously tries to shrink the simplex, it re-initializes it with the best point
+        (https://en.wikipedia.org/wiki/Nelder%E2%80%93Mead_method)
         """
         best_particle = self.population[0]
         second_worst_particle = self.population[self.n-1]
@@ -149,29 +153,30 @@ class PSO_NM:
 
         # Compute the centroid, excluding the worst point
         centroid_value = np.mean([p.value for p in self.population[:self.n]], axis=0)
-        centroid_particle = Particle(max([p.id for p in self.population])+ 1, centroid_value)
+        centroid_particle = Particle(-1, centroid_value)
         centroid_particle.repair(self.value_bounds)
         centroid_particle.evaluate(self.fitness_function)
 
         # REFLECTION
         reflected_value = centroid_value + self.reflection_parameter * (centroid_value - worst_particle.value)
-        reflected_particle = Particle(max([p.id for p in self.population])+ 1, reflected_value)
+        reflected_particle = Particle(worst_particle.id, reflected_value)
         reflected_particle.repair(self.value_bounds)
         reflected_particle.evaluate(self.fitness_function)
+        print("REFLECTED PARTICLE: ", reflected_particle.fitness)
 
         # If the new reflected particle is better than the second worst, but worse than the best, we can break to the next iteration
         if best_particle.fitness >= reflected_particle.fitness > second_worst_particle.fitness:
             # then obtain a new simplex by replacing the worst point with the reflected point
             self.population[self.n] = reflected_particle
             if self.verbose:
-                print("✨ Reflected ✨")
+                print("\t✨ Simplex reflection applied ✨")
             return
 
         # EXPANSION
         # If the point we've found is better than the best, we try to expand it
         elif reflected_particle.fitness > best_particle.fitness:
             expanded_value = centroid_value + self.expansion_parameter * (reflected_value - centroid_value)
-            expanded_particle = Particle(max([p.id for p in self.population])+ 1, expanded_value)
+            expanded_particle = Particle(worst_particle.id, expanded_value)
             expanded_particle.repair(self.value_bounds)
             expanded_particle.evaluate(self.fitness_function)
 
@@ -181,12 +186,12 @@ class PSO_NM:
                 # then obtain a new simplex by replacing the worst point with the expanded point and break to the next iteration
                 self.population[self.n] = expanded_particle
                 if self.verbose:
-                    print("✨ Tried expansion and it worked! ✨")
+                    print("\t✨ Simplex expansion tried, it worked! ✨")
             else:
                 # otherwise, we substitute the worst point with the reflected point and break to the next iteration
                 self.population[self.n] = reflected_particle
                 if self.verbose:
-                    print("✨ Tried expansion but reflection was better ✨")
+                    print("\t✨ Simplex expansion tried, but reflection was better ✨")
             return
 
         # CONTRACTION
@@ -194,7 +199,7 @@ class PSO_NM:
         # If the reflected point we've found was better than the worst, we'll contract
         elif reflected_particle.fitness > worst_particle.fitness:
             contracted_value = centroid_value + self.contraction_parameter * (reflected_value - centroid_value)
-            contracted_particle = Particle(max([p.id for p in self.population])+1, contracted_value)
+            contracted_particle = Particle(worst_particle.id, contracted_value)
             contracted_particle.repair(self.value_bounds)
             contracted_particle.evaluate(self.fitness_function)
 
@@ -204,12 +209,12 @@ class PSO_NM:
                 self.population[self.n] = contracted_particle
 
                 if self.verbose:
-                    print("✨ Contracted ✨")
+                    print("\t✨ Simplex contraction applied ✨")
                 return
         # we will contract too if the reflected point is worse than the worst one
         elif reflected_particle.fitness <= worst_particle.fitness:
             contracted_value = centroid_value + self.contraction_parameter * (worst_particle.value - centroid_value)
-            contracted_particle = Particle(max([p.id for p in self.population])+ 1, contracted_value)
+            contracted_particle = Particle(worst_particle.id, contracted_value)
             contracted_particle.repair(self.value_bounds)
             contracted_particle.evaluate(self.fitness_function)
 
@@ -219,7 +224,7 @@ class PSO_NM:
                 self.population[self.n] = contracted_particle
 
                 if self.verbose:
-                    print("✨ Contracted ✨")
+                    print("\t✨ Simplex contraction applied ✨")
                 return
 
         # SHRINKING
@@ -232,7 +237,7 @@ class PSO_NM:
             self.population[i].evaluate(self.fitness_function)
 
         if self.verbose:
-            print("✨ Shrinked ✨")
+            print("\t✨ Simplex shrinking applied ✨")
 
     def optimize(self):
         """
@@ -267,13 +272,14 @@ class PSO_NM:
 
 
 def main():
-    env = MountainScooter(mass=0.40, friction=0.35, max_speed=1.8)
+    env = MountainScooter(mass=0.4, friction=0.3, max_speed=1.8)
 
     num_bins = 20
     pso_nm = PSO_NM(n=num_bins*num_bins
                     , fitness_function=lambda policy: env.evaluate_policy(policy, num_bins)
                     , value_bounds=(0, 2)
                     , max_iterations=30
+                    , x_1=np.full(num_bins*num_bins, 2)   # initialize particles letting the scooter always go straight
                     , verbose=True)
     optimal_particle = pso_nm.optimize()
     env.evaluate_policy(optimal_particle.value, num_bins)
