@@ -1,6 +1,4 @@
 import numpy as np
-from tqdm import tqdm
-
 from Particle import Particle
 from mountain_scooter import MountainScooter
 
@@ -66,23 +64,16 @@ class PSO_NM:
                 first_particle = Particle(0, self.x_1)
         else:  # If the user didn't provide a point
             # Initialize the first point of the simplex randomly
-            random_value = np.random.randint(low=self.value_bounds[0], high=self.value_bounds[1]+1, size=self.n)
+            random_value = np.random.random(size=self.n)
             first_particle = Particle(0, random_value)
 
         simplex_particles = [first_particle]
 
         # Then, we will generate the other particles by shifting the first one
-        # in all the position defined by an eye matrix with an offset
-        offset = 2
+        # in all the position defined by an eye matrix
         identity = np.eye(self.n, dtype=int)
-        for i in range(1, offset+1):
-            np.fill_diagonal(identity[i:, :-i], 1)
-            np.fill_diagonal(identity[:-i, i:], 1)
-
         for i in range(self.n):
-            # step is positive or negative, to avoid infeasible points
-            step = self.shift_coefficient if first_particle.value[i] != self.value_bounds[1] else -self.shift_coefficient
-            simplex_particles.append(Particle(i+1, first_particle.value + step * identity[i, :]))
+            simplex_particles.append(Particle(i+1, first_particle.value + self.shift_coefficient * identity[i, :]))
         return simplex_particles
 
     def initialize_population(self):
@@ -98,7 +89,7 @@ class PSO_NM:
 
         # The remaining n particles are randomly generated
         for i in range(self.n+1, N):
-            random_value = np.random.randint(low=self.value_bounds[0], high=self.value_bounds[1] + 1, size=self.n)
+            random_value = np.random.random(size=self.n)
             population.append(Particle(i, random_value))
         return population
 
@@ -115,13 +106,6 @@ class PSO_NM:
         """
         for particle in self.population:
             particle.evaluate(self.fitness_function)
-
-    def repair_population(self):
-        """
-        Repair the population if any particle is infeasible
-        """
-        for particle in self.population:
-            particle.repair(self.value_bounds)
 
     def compute_best_particle_population(self):
         """
@@ -140,7 +124,6 @@ class PSO_NM:
             particle.update_value()
 
             # Repair the particle if it is infeasible and evaluate its fitness
-            particle.repair(self.value_bounds)
             particle.evaluate(self.fitness_function)
 
     def nelder_mead(self):
@@ -159,13 +142,11 @@ class PSO_NM:
         # Compute the centroid, excluding the worst point
         centroid_value = np.mean([p.value for p in self.population[:self.n]], axis=0)
         centroid_particle = Particle(-1, centroid_value)
-        centroid_particle.repair(self.value_bounds)
         centroid_particle.evaluate(self.fitness_function)
 
         # REFLECTION
         reflected_value = centroid_value + self.reflection_parameter * (centroid_value - worst_particle.value)
         reflected_particle = Particle(worst_particle.id, reflected_value)
-        reflected_particle.repair(self.value_bounds)
         reflected_particle.evaluate(self.fitness_function)
         print("REFLECTED PARTICLE: ", reflected_particle.fitness)
 
@@ -182,7 +163,6 @@ class PSO_NM:
         elif reflected_particle.fitness > best_particle.fitness:
             expanded_value = centroid_value + self.expansion_parameter * (reflected_value - centroid_value)
             expanded_particle = Particle(worst_particle.id, expanded_value)
-            expanded_particle.repair(self.value_bounds)
             expanded_particle.evaluate(self.fitness_function)
 
             # We substitute the worst point with the better of the two
@@ -205,7 +185,6 @@ class PSO_NM:
         elif reflected_particle.fitness > worst_particle.fitness:
             contracted_value = centroid_value + self.contraction_parameter * (reflected_value - centroid_value)
             contracted_particle = Particle(worst_particle.id, contracted_value)
-            contracted_particle.repair(self.value_bounds)
             contracted_particle.evaluate(self.fitness_function)
 
             # If the contracted point is better than the reflected point
@@ -220,7 +199,6 @@ class PSO_NM:
         elif reflected_particle.fitness <= worst_particle.fitness:
             contracted_value = centroid_value + self.contraction_parameter * (worst_particle.value - centroid_value)
             contracted_particle = Particle(worst_particle.id, contracted_value)
-            contracted_particle.repair(self.value_bounds)
             contracted_particle.evaluate(self.fitness_function)
 
             # If the contracted point is better than the worst point
@@ -238,7 +216,6 @@ class PSO_NM:
         for i in range(1, self.n + 1):
             value = best_particle.value + self.shrinking_parameter * (self.population[i].value - best_particle.value)
             self.population[i] = Particle(self.population[i].id, value)
-            self.population[i].repair(self.value_bounds)
             self.population[i].evaluate(self.fitness_function)
 
         if self.verbose:
@@ -252,7 +229,6 @@ class PSO_NM:
         for i in range(self.max_iterations):
 
             # Evaluate the fitness of each particle in the population
-            self.repair_population()
             self.evaluate_population()
 
             # Sort the population by fitness
@@ -277,21 +253,29 @@ class PSO_NM:
 
 
 def main():
+    # initialize environment
     env = MountainScooter(mass=0.4, friction=0.3, max_speed=1.8)
 
-    num_bins = 20
-    pso_nm = PSO_NM(n=num_bins*num_bins
-                    , fitness_function=lambda policy: env.evaluate_policy(policy, num_bins)
+    # The biases have to be the same amount of the nodes without considering the first layer
+    # The weights are the connections between the nodes of input and hidden layer + hidden and output layer
+    n_hidden_nodes = 10
+    n_bias = n_hidden_nodes + env.num_actions
+    n_weights = 2 * n_hidden_nodes + n_hidden_nodes * env.num_actions
+
+    # The dimension of a single particle is the number of biases and weights of the neural network
+    n = n_bias + n_weights
+
+    # initialize PSO-NM
+    pso_nm = PSO_NM(n=n
+                    , fitness_function=lambda weights_and_biases: env.environment_execution(weights_and_biases, n_hidden_nodes)
                     , value_bounds=(0, 2)
                     , max_iterations=30
-                    , x_1=np.full(num_bins*num_bins, 2)   # initialize particles letting the scooter always go straight
                     , verbose=True)
     optimal_particle = pso_nm.optimize()
-    env.evaluate_policy(optimal_particle.value, num_bins)
+    env.environment_execution(optimal_particle.value, n_hidden_nodes)
 
     env.render(show_plot=True)
     print("✅ Complete!")
-
 
 if __name__ == "__main__":
     main()

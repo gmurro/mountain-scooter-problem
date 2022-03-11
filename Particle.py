@@ -49,14 +49,6 @@ class Particle:
         """
         self.value = self.value + self.velocity
 
-    def repair(self, value_bounds):
-        """
-        Fix the value of the particle clipping into the bounds if it is not a feasible solution
-            :return: Value of the particle fixed
-        """
-        self.value = np.rint(self.value)
-        self.value = np.clip(self.value, value_bounds[0], value_bounds[1])
-
     def __str__(self):
         return "Particle {} (fitness={})".format(self.id, self.fitness)
 

@@ -12,7 +12,7 @@ class QLearning(object):
     QLearning is a class that implements the Q-Learning off-policy TD control algorithm
     by Sutton and Barto, Reinforcement Learning: An Introduction (2018, http://incompleteideas.net/book/ebook/node65.html)
     """
-    def __init__(self, env, num_bins, alpha, epsilon, decay_factor=200, num_actions=3, discount_factor=1.0, verbose=False):
+    def __init__(self, env, num_bins, alpha, epsilon, decay_factor=200, discount_factor=1.0, verbose=False):
         """
         Initializes the Q-Learning algorithm
             :param env: Environment object to interact with
@@ -20,13 +20,11 @@ class QLearning(object):
             :param alpha: Starting value of alpha to compute the learning rate that will be decayed over time
             :param epsilon: Starting value of epsilon for the epsilon-greedy policy (it will be decayed over time)
             :param decay_factor: Denominator used to decay epsilon and alpha over time (default: 200)
-            :param num_actions: number of actions allowed (default: 3)
             :param discount_factor: Value of discount factor (default: 1.0)
             :param verbose: If True, print the progress of the algorithm. Default value is False.
         """
         self.env = env
         self.num_bins = num_bins
-        self.num_actions = num_actions
         self.alpha = alpha
         self.discount_factor = discount_factor
         self.epsilon = epsilon
@@ -61,7 +59,7 @@ class QLearning(object):
         """
         # Random policy as a square matrix of size (num_bins x num_bins)
         # Three possible actions represented by three integers
-        policy = np.random.randint(low=0, high=self.num_actions, size=(self.num_bins, self.num_bins))
+        policy = np.random.randint(low=0, high=self.env.num_actions, size=(self.num_bins, self.num_bins))
         return policy
 
     def greedification(self, q_values):
@@ -86,7 +84,7 @@ class QLearning(object):
             :return: Return the optimal Q-value matrix, the optimal policy is stored in the attribute policy
         """
         # initialize the value-state function randomly
-        q_values = np.random.random((self.num_bins, self.num_bins, self.num_actions))
+        q_values = np.random.random((self.num_bins, self.num_bins, self.env.num_actions))
 
         # list of thresholds according to which packing in bins the velocity and the position
         velocity_state_array = np.linspace(-self.env.max_speed, self.env.max_speed, num=self.num_bins-1, endpoint=False)
@@ -127,7 +125,7 @@ class QLearning(object):
             while not done and step < max_steps:
                 # choose an action based on the policy using epsilon-greedy strategy
                 if np.random.random() > 1 - epsilon:
-                    action = np.random.randint(low=0, high=self.num_actions)
+                    action = np.random.randint(low=0, high=self.env.num_actions)
                 else:
                     action = self.policy[state]
 

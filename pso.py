@@ -70,35 +70,43 @@ class PSO:
                 particle.update_value()
 
                 # Repair the particle if it is infeasible and evaluate its fitness
-                particle.repair(self.value_bounds)
                 particle.evaluate(self.fitness_function)
             self.best_particle_population = self.compute_best_particle_population()
 
 
 def main():
     # initialize environment
-    env = MountainScooter(mass=0.4, friction=0.3, max_speed=1.8)
+    #env = MountainScooter(mass=0.4, friction=0.3, max_speed=1.8)
+    env = MountainScooter(mass=0.5, friction=0.3, max_speed=2.5)
 
-    num_bins = 15
-    num_particles = 200
+    # The biases have to be the same amount of the nodes without considering the first layer
+    # The weights are the connections between the nodes of input and hidden layer + hidden and output layer
+    n_hidden_nodes = 10
+    n_bias = n_hidden_nodes + env.num_actions
+    n_weights = 2 * n_hidden_nodes + n_hidden_nodes * env.num_actions
+
+    # The dimension of a single particle is the number of biases and weights of the neural network
+    n = n_bias + n_weights
+
+    num_particles = 100
 
     # initialize PSO
     pso = PSO(
-        n=num_bins*num_bins
+        n=n
         , num_particles=num_particles
-        , fitness_function=lambda policy: env.evaluate_policy(policy, num_bins)
+        , fitness_function=lambda weights_and_biases: env.environment_execution(weights_and_biases, n_hidden_nodes)
         , value_bounds=(0, 2)
         , max_iterations=50
-        , w=0.7
-        , c1=2.0
-        , c2=2.0
+        , w=0.5
+        , c1=1.5
+        , c2=1.5
         , verbose=True
     )
     pso.optimize()
+    env.environment_execution(pso.best_particle_population.value, n_hidden_nodes)
 
-    env.evaluate_policy(pso.best_particle_population.value, num_bins)
-    print(pso.best_particle_population)
-    env.render(file_path='./mountain_car.gif')
+    env.render(show_plot=True)
+    print("✅ Complete!")
 
 if __name__ == "__main__":
     main()

@@ -22,7 +22,7 @@ class MountainScooter:
     Episode Termination: The scooter position is more than 0.5. Episode length is greater than 150
     """
 
-    def __init__(self, mass=0.5, friction=0.3, delta_t=0.1, initial_position=-0.5, min_position=-1.2, max_position=0.5, max_speed=1.8, goal_position=0.5):
+    def __init__(self, mass=0.5, friction=0.3, delta_t=0.1, initial_position=-0.5, min_position=-1.2, max_position=0.5, max_speed=1.8, goal_position=0.5, num_actions=3):
         """
         Create a new mountain scooter object.
         It is possible to pass the parameter of the simulation.
@@ -34,6 +34,7 @@ class MountainScooter:
             :param max_position: the maximum position of the scooter (default 0.5)
             :param max_speed: the maximum speed of the scooter (default 0.07)
             :param goal_position: the position of the goal (default 0.5)
+            :param num_actions: number of actions allowed (default: 3)
         """
         self.position_list = list()
         self.gravity = 9.8
@@ -46,6 +47,7 @@ class MountainScooter:
         self.max_position = max_position
         self.max_speed = max_speed
         self.goal_position = goal_position
+        self.num_actions = num_actions
 
     def reset(self, exploring_starts=False, initial_position=-0.5):
         """
@@ -74,7 +76,7 @@ class MountainScooter:
             :return: (velocity_t1, position_t1), reward, done
                       where reward is always negative but when the goal is reached, reward is zero and done is True
         """
-        if action >= 3 or action < 0:
+        if action >= self.num_actions or action < 0:
             raise ValueError("[MOUNTAIN SCOOTER][ERROR] The action value " + str(action) + " is out of range.")
         done = False
 
@@ -121,6 +123,8 @@ class MountainScooter:
             :param exploring_starts: if True a random position between [-0.6, -0.4] as initial position is taken, otherwise it will be -0.5. Default: False
             :return: the total reward obtained by the policy
         """
+        # fix the policy values to be valid actions
+        policy = np.clip(np.rint(policy), 0, 2)
 
         # reshape the policy to be (num_bins x num_bins) matrix with velocity on rows and position on columns
         policy_matrix = policy.reshape(num_bins, num_bins)
@@ -148,6 +152,59 @@ class MountainScooter:
             # Move one step in the environment and get the new state and reward
             (new_velocity, new_position), reward, done = self.step(action)
             state = (np.digitize(new_velocity, velocity_state_array), np.digitize(new_position, position_state_array))
+            total_reward += reward
+            step += 1
+        return total_reward
+
+    def controller(self, inputs, weights_and_biases, n_hidden_nodes=10):
+        def _sigmoid_activation(x):
+            return 1 / (1 + np.exp(-x))
+
+        def _softmax_activation(x):
+            e_x = np.exp(x - np.max(x))
+            return e_x / e_x.sum(axis=0)
+
+        # Preparing the weights and biases from the controller of the hidden layer
+        # The encoding is [biases_hidden_layer, weights_hidden_layer, biases_output_layer, weights_output_layer]
+
+        # Biases for the n hidden neurons
+        biases1 = weights_and_biases[:n_hidden_nodes].reshape(1, n_hidden_nodes)
+
+        # Weights for the connections from the inputs to the hidden nodes
+        weights1_slice = len(inputs) * n_hidden_nodes + n_hidden_nodes
+        weights1 = weights_and_biases[n_hidden_nodes:weights1_slice].reshape((len(inputs), n_hidden_nodes))
+
+        # Outputs activation first layer
+        activation_input1 = np.dot(inputs, weights1) + biases1
+        output1 = _sigmoid_activation(activation_input1[0])
+
+        # Preparing the weights and biases from the controller of layer 2
+        n_output_nodes = self.num_actions
+        bias2 = weights_and_biases[weights1_slice:weights1_slice + n_output_nodes].reshape(1, n_output_nodes)
+        weights2 = weights_and_biases[weights1_slice + n_output_nodes:].reshape((n_hidden_nodes, n_output_nodes))
+
+        # Outputting activated second layer. Each entry in the output is an action
+        activation_input2 = output1.dot(weights2) + bias2
+        output = _sigmoid_activation(activation_input2[0])
+        return output
+
+    def environment_execution(self, weights_and_biases, n_hidden_nodes=10, max_steps=100, exploring_starts=False):
+        # Reset and return the first observation
+        velocity, position = self.reset(exploring_starts=exploring_starts)
+
+        total_reward = 0
+        step = 0
+        done = False
+
+        # Iterate until the maximum number of steps is reached or the goal is reached
+        while not done and step < max_steps:
+
+            # take the action with higher likelihood
+            output = self.controller(np.array([velocity, position]), weights_and_biases, n_hidden_nodes)
+            action = np.argmax(output)
+
+            # Move one step in the environment and get the new state and reward
+            (velocity, position), reward, done = self.step(action)
             total_reward += reward
             step += 1
         return total_reward
@@ -218,7 +275,7 @@ def main():
     Execute the environment going back and forth as long as the scooter velocity became negative.
     """
     # Initialize the environment
-    env = MountainScooter(mass=0.4, friction=0.3, max_speed=1.8)
+    env = MountainScooter(mass=0.5, friction=0.3, max_speed=2.5)
 
     total_reward = 1
     done = False
@@ -232,7 +289,6 @@ def main():
     # Iterate until the maximum number of steps is reached or the goal is reached
     while not done and step < max_steps:
         (velocity, position), reward, done = env.step(action)
-        print(velocity)
 
         if action == 0 and velocity > 0:
             action = 2
