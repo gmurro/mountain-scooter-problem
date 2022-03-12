@@ -4,7 +4,7 @@ This repository contains a project realized as part of the *Combinatorial Decisi
 
 ### Description
 
-The well known *Mountain Car problem* is a classic reinforcement learning problem, but in this project I used the analogy of **Mountain Scooter** since it's better to use an electric scooter cause of the soar in fuel prices during those days ⛽.
+The well known *Mountain Car problem* is a classic reinforcement learning problem, but in this project I used the analogy of **Mountain Scooter** since it's cheaper to use an electric scooter cause of the soar in fuel prices during those days ⛽.
 
 The original problem was first described by Andrew Moore in his PhD thesis [[1]](http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.17.2654) and it is defined as follows: a mountain car is moving on a two-hills landscape. The engine of the car isn't stronger enough and even at full throttle the car cannot accelerate up the steep climb, as you can see from the following animation:
 
