@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from mountain_scooter import MountainScooter
 matplotlib.use('Qt5Agg')
+
 np.random.seed(9)
 
 
@@ -181,7 +182,7 @@ class QLearning(object):
                                  , show_plot=True)
         return q_values if not return_stats else q_values, stats
 
-    def render_training(self, x, y, v_values, file_path="./q-learning_training.gif", show_plot=False, figsize=(10, 8)):
+    def render_training(self, x, y, v_values, file_path="./q-learning_training.mp4", show_plot=False, figsize=(10, 8)):
         """
         Render evolution of the v-values during the training.
             :param x: x-axis values
@@ -201,12 +202,15 @@ class QLearning(object):
         Z = v_values[:,:,0]
         plot = [ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap='viridis', edgecolor='none')]
 
+        # add episode annotation
+        episode_text = ax.text2D(0.05, 0.9, '', transform=ax.transAxes)
+
         def _init():
             # Setting the axes properties
-            ax.set_xlim3d([self.env.min_position, self.env.max_position])
+            ax.set_xlim3d([self.env.min_position-0.05, self.env.max_position+0.05])
             ax.set_xlabel('Position')
 
-            ax.set_ylim3d([-self.env.max_speed, self.env.max_speed])
+            ax.set_ylim3d([-self.env.max_speed-0.1, self.env.max_speed+0.1])
             ax.set_ylabel('Velocity')
 
             ax.set_zlabel('V-value')
@@ -215,17 +219,17 @@ class QLearning(object):
         def _update(i):
             Z = v_values[:,:,i]
 
-            ax.clear()
             plot[0].remove()
             plot[0] = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap='viridis', edgecolor='none')
+            episode_text.set_text("Episode: " + str(i))
             return
 
         # Creating the Animation object
-        ani = animation.FuncAnimation(fig, _update, frames=v_values.shape[2], init_func=_init, blit=False, repeat=True)
+        ani = animation.FuncAnimation(fig, _update, frames=v_values.shape[2], interval=5, init_func=_init, blit=False, repeat=True)
         if show_plot:
             plt.show()
         else:
-            ani.save(file_path, writer='pillow')
+            ani.save(file_path,  writer='ffmpeg', fps=240)
             print("Animation saved in " + file_path)
 
         # Clear the figure
@@ -259,6 +263,7 @@ def plot_stats(x, y, x_label, y_label,  labels, title="", std_y=None, y_scale="l
 
 
 def main():
+    print("🛵 Starting the MOUNTAIN SCOOTER optimization with Q-learning algorithm...")
     env = MountainScooter(mass=0.4, friction=0.3, max_speed=1.8)
     
     # -------------------------------------------------------------------------------#
@@ -275,10 +280,14 @@ def main():
                                       , n_episode_print_stats=500
                                       , n_episode_render_env=5000
                                       , render_training=True
-                                      , return_stats=False)
+                                      , return_stats=True)
+
+    print(f"\n🏆 Total reward of the agent after training: {stats['total_rewards'][-1]}")
+    env.render(show_plot=False)
+    print("✅ Complete!")
 
     # plot statistics
-    plot_episodes = range(0, num_episodes, 100)
+    plot_episodes = range(0, num_episodes, 50)
     plot_stats(
         x=plot_episodes,
         y=[stats['total_rewards'][plot_episodes]],

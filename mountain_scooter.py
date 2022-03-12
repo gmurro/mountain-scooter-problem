@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -22,11 +24,11 @@ class MountainScooter:
     Episode Termination: The scooter position is more than 0.5. Episode length is greater than 150
     """
 
-    def __init__(self, mass=0.5, friction=0.3, delta_t=0.1, initial_position=-0.5, min_position=-1.2, max_position=0.5, max_speed=1.8, goal_position=0.5, num_actions=3):
+    def __init__(self, mass=0.4, friction=0.3, delta_t=0.1, initial_position=-0.5, min_position=-1.2, max_position=0.5, max_speed=1.8, goal_position=0.5, num_actions=3):
         """
         Create a new mountain scooter object.
         It is possible to pass the parameter of the simulation.
-            :param mass: the mass of the scooter (default 0.2)
+            :param mass: the mass of the scooter (default 0.4)
             :param friction:  the friction in Newton (default 0.3)
             :param delta_t: the time step in seconds (default 0.1)
             :param initial_position: the initial position of the scooter (default -0.5)
@@ -156,39 +158,59 @@ class MountainScooter:
             step += 1
         return total_reward
 
-    def controller(self, inputs, weights_and_biases, n_hidden_nodes=10):
+    def controller(self, inputs, weights_and_biases, layer_nodes):
+        """
+        The controller is a neural network that will be used to determine the best action given the position and the velocity
+            :param inputs: array of shape (2,) containing the velocity and the position
+            :param weights_and_biases: array containing the weights (and all biases at the end) of the neural network
+            :param layer_nodes: array containing the number of nodes in each layer of the neural network
+            :return: probability density of taking each action (0, 1, 2)
+        """
         def _sigmoid_activation(x):
-            return 1 / (1 + np.exp(-x))
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                return 1 / (1 + np.exp(-x))
 
         def _softmax_activation(x):
             e_x = np.exp(x - np.max(x))
             return e_x / e_x.sum(axis=0)
 
-        # Preparing the weights and biases from the controller of the hidden layer
-        # The encoding is [biases_hidden_layer, weights_hidden_layer, biases_output_layer, weights_output_layer]
+        # The biases are at the end of the array, the rest is weights
+        biases = weights_and_biases[-(np.sum(layer_nodes) - layer_nodes[0]):]
+        weights = weights_and_biases[: -(np.sum(layer_nodes) - layer_nodes[0])]
+        used_weights = 0
+        used_biases = 0
+        input = np.array(inputs)
+        for layer in range(0, len(layer_nodes) - 1):
+            layer_weights = weights[
+                            used_weights: used_weights
+                                          + (layer_nodes[layer] * layer_nodes[layer + 1])
+                            ].reshape(layer_nodes[layer], layer_nodes[layer + 1])
+            layer_biases = biases[
+                           used_biases: used_biases + layer_nodes[layer + 1]
+                           ].reshape((1, layer_nodes[layer + 1]))
 
-        # Biases for the n hidden neurons
-        biases1 = weights_and_biases[:n_hidden_nodes].reshape(1, n_hidden_nodes)
+            # apply softmax activation only for the last layer
+            activation_input = np.dot(input, layer_weights) + layer_biases
+            if layer == len(layer_nodes) - 2:
+                input = _softmax_activation(activation_input[0])
+            else:
+                # otherwise use sigmoid as activation function
+                input = _sigmoid_activation(activation_input[0])
 
-        # Weights for the connections from the inputs to the hidden nodes
-        weights1_slice = len(inputs) * n_hidden_nodes + n_hidden_nodes
-        weights1 = weights_and_biases[n_hidden_nodes:weights1_slice].reshape((len(inputs), n_hidden_nodes))
+            used_weights += layer_nodes[layer] * layer_nodes[layer + 1]
+            used_biases += layer_nodes[layer + 1]
+        return input
 
-        # Outputs activation first layer
-        activation_input1 = np.dot(inputs, weights1) + biases1
-        output1 = _sigmoid_activation(activation_input1[0])
-
-        # Preparing the weights and biases from the controller of layer 2
-        n_output_nodes = self.num_actions
-        bias2 = weights_and_biases[weights1_slice:weights1_slice + n_output_nodes].reshape(1, n_output_nodes)
-        weights2 = weights_and_biases[weights1_slice + n_output_nodes:].reshape((n_hidden_nodes, n_output_nodes))
-
-        # Outputting activated second layer. Each entry in the output is an action
-        activation_input2 = output1.dot(weights2) + bias2
-        output = _sigmoid_activation(activation_input2[0])
-        return output
-
-    def environment_execution(self, weights_and_biases, n_hidden_nodes=10, max_steps=100, exploring_starts=False):
+    def environment_execution(self, weights_and_biases, layer_nodes, max_steps=100, exploring_starts=False):
+        """
+        Executes the environment using a given neural network and returns the total reward obtained.
+           :param weights_and_biases: array containing the weights (and all biases at the end) of the neural network
+           :param layer_nodes: array containing the number of nodes in each layer of the neural network
+           :param max_steps: maximum number of steps to be executed in the environment
+           :param exploring_starts: boolean indicating whether the agent starts exploring or not
+           :return: total reward obtained
+        """
         # Reset and return the first observation
         velocity, position = self.reset(exploring_starts=exploring_starts)
 
@@ -200,7 +222,7 @@ class MountainScooter:
         while not done and step < max_steps:
 
             # take the action with higher likelihood
-            output = self.controller(np.array([velocity, position]), weights_and_biases, n_hidden_nodes)
+            output = self.controller(np.array([velocity, position]), weights_and_biases, layer_nodes)
             action = np.argmax(output)
 
             # Move one step in the environment and get the new state and reward
@@ -258,7 +280,6 @@ class MountainScooter:
             return
 
         ani = animation.FuncAnimation(fig, _update, frames=len(self.position_list), init_func=_init, blit=False, repeat=True)
-        ani.save(file_path, writer='pillow')
 
         if show_plot:
             plt.show()
@@ -275,13 +296,13 @@ def main():
     Execute the environment going back and forth as long as the scooter velocity became negative.
     """
     # Initialize the environment
-    env = MountainScooter(mass=0.5, friction=0.3, max_speed=2.5)
+    env = MountainScooter(mass=0.4, friction=0.3, max_speed=1.8)
 
     total_reward = 1
     done = False
     step = 0
     max_steps = 100
-    print("🛵 Starting the MOUNTAIN SCOOTER...")
+    print("🛵 Starting the MOUNTAIN SCOOTER execution with rule-based actions...")
 
     # scooter starts going back
     action = 0
@@ -299,7 +320,7 @@ def main():
         total_reward += reward
         step += 1
 
-    print("Finished after: " + str(step + 1) + " steps")
+    print("Finished after: " + str(step) + " steps")
     print("Total reward: " + str(total_reward))
 
     env.render(show_plot=True)
