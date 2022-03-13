@@ -3,7 +3,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from mountain_scooter import MountainScooter
-matplotlib.use('Qt5Agg')
 
 np.random.seed(9)
 
@@ -227,13 +226,13 @@ class QLearning(object):
         # Creating the Animation object
         ani = animation.FuncAnimation(fig, _update, frames=v_values.shape[2], interval=5, init_func=_init, blit=False, repeat=True)
         if show_plot:
-            plt.show()
+            plt.show()    
+            # Clear the figure
+            fig.clear()
         else:
             ani.save(file_path,  writer='ffmpeg', fps=240)
             print("Animation saved in " + file_path)
 
-        # Clear the figure
-        fig.clear()
 
 
 def plot_stats(x, y, x_label, y_label,  labels, title="", std_y=None, y_scale="linear", figsize=(10,5)):
@@ -283,7 +282,7 @@ def main():
                                       , return_stats=True)
 
     print(f"\n🏆 Total reward of the agent after training: {stats['total_rewards'][-1]}")
-    env.render(show_plot=False)
+    env.render(show_plot=True)
     print("✅ Complete!")
 
     # plot statistics

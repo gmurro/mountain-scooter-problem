@@ -223,10 +223,10 @@ class NM_PSO:
         Search the optimal solution.
             :return: The optimal solution.
         """
-        for i in range(self.max_iterations):
+        # Evaluate the fitness of each particle in the population
+        self.evaluate_population()
 
-            # Evaluate the fitness of each particle in the population
-            self.evaluate_population()
+        for i in range(self.max_iterations):
 
             # Sort the population by fitness
             self.sort()

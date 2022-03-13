@@ -5,8 +5,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-matplotlib.use('Qt5Agg')
-
 
 class MountainScooter:
     """
@@ -283,12 +281,11 @@ class MountainScooter:
 
         if show_plot:
             plt.show()
+            # Clear the figure
+            fig.clear()
         else:
             ani.save(file_path, writer='pillow')
             print("Animation saved in " + file_path)
-
-        # Clear the figure
-        fig.clear()
 
 
 def main():
